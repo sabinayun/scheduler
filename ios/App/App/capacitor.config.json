@@ -1,0 +1,8 @@
+{
+	"appId": "com.sebin.scheduler",
+	"appName": "윤세빈 스케줄러",
+	"webDir": "www",
+	"packageClassList": [
+		"LocalNotificationsPlugin"
+	]
+}

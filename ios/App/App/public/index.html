@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>윤세빈 스케줄러</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<style>
+:root{
+  --paper:#FFFFFF;
+  --paper-line:#DADADA;
+  --ink:#111111;
+  --ink-soft:#3A3A3A;
+  --muted:#8A8A8A;
+  --red-pen:#C0392B;
+  --gold:#555555;
+  --green:#777777;
+  --gray:#6B7280;
+  --card:#FFFFFF;
+  --shadow: none;
+  --shadow-lg: 0 10px 26px rgba(0,0,0,0.14);
+  --radius: 6px;
+  --font-display: 'Pretendard', -apple-system, sans-serif;
+  --font-body: 'Pretendard', -apple-system, sans-serif;
+  --font-mono: 'Pretendard', -apple-system, sans-serif;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family: var(--font-body);
+  background: var(--paper); /* 선을 없애고 단색 배경만 남김 */
+  color: var(--ink);
+  min-height:100vh;
+  -webkit-font-smoothing: antialiased;
+}button{font-family:inherit; cursor:pointer;}
+input,select,textarea{font-family:inherit;}
+::selection{ background: rgba(214,69,69,0.18); }
+
+/* ---------- App shell ---------- */
+.app{
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 28px 18px 100px;
+}
+.app-header{
+  display:flex; align-items:flex-start; justify-content:space-between;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--ink);
+}
+.brand h1{
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 28px;
+  margin:0 0 2px;
+  letter-spacing: -0.02em;
+}
+.brand p{
+  margin:0; color:var(--muted); font-size:13px;
+}
+.header-actions{ display:flex; gap:8px; }
+.icon-btn{
+  width:40px; height:40px; border-radius:50%;
+  border:1px solid var(--ink); background:var(--card);
+  display:flex; align-items:center; justify-content:center;
+  font-size:17px; box-shadow: none;
+  position:relative;
+}
+.icon-btn.active{ border-color: var(--red-pen); color: var(--red-pen); }
+.badge-dot{
+  position:absolute; top:-2px; right:-2px; width:9px; height:9px; border-radius:50%;
+  background: var(--red-pen); border:1.5px solid var(--paper);
+}
+
+/* ---------- Month nav ---------- */
+.month-bar{
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom: 14px;
+}
+.month-bar h2{
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 21px; margin:0; min-width:150px; text-align:center;
+}
+.nav-btn{
+  width:34px;height:34px;border-radius:50%; border:1px solid var(--ink);
+  background:var(--card); font-size:16px; color:var(--ink-soft);
+}
+.today-btn{
+  border:1px solid var(--red-pen); background:transparent; color:var(--red-pen);
+  border-radius:2px; padding:6px 14px; font-size:12.5px; font-weight:600;
+}
+
+/* ---------- Calendar grid ---------- */
+.weekday-row{
+  display:grid; grid-template-columns: repeat(7,1fr);
+  margin-bottom:6px;
+}
+.weekday-row span{
+  text-align:center; font-size:11.5px; color:var(--muted); font-weight:600;
+  letter-spacing:0.02em;
+}
+.weekday-row span:first-child{ color: var(--red-pen); }
+.cal-grid{
+  display:grid; grid-template-columns: repeat(7,1fr);
+  gap:6px;
+}
+.day-cell{
+  aspect-ratio: 0.82;
+  background: var(--card);
+  border-radius: 2px;
+  border:1px solid var(--paper-line);
+  padding:6px 5px 5px;
+  display:flex; flex-direction:column;
+  text-align:left;
+  position:relative;
+  transition: transform .12s ease, border-color .12s ease;
+}
+.day-cell:not(.empty):active{ transform: scale(0.96); }
+.day-cell.empty{ background:transparent; border-color:transparent; }
+.day-cell .num{
+  font-family: var(--font-mono);
+  font-size:13px; font-weight:500; color: var(--ink-soft);
+  width:20px; height:20px; display:flex; align-items:center; justify-content:center;
+}
+.day-cell.today{ border:1.5px solid var(--red-pen); }
+.day-cell.today .num{
+  color: var(--red-pen); font-weight:700;
+}
+.day-cell.sunday .num{ color: var(--red-pen); }
+.day-cell.other-month{ opacity:0.32; }
+.dots{
+  margin-top:auto; display:flex; flex-wrap:wrap; gap:3px; align-items:flex-end;
+}
+.dot{ width:6px;height:6px;border-radius:50%; flex-shrink:0; }
+.more-tag{
+  font-size:9px; color:var(--muted); font-family:var(--font-mono);
+}
+
+/* ---------- Overlay / modal shared ---------- */
+.overlay{
+  position:fixed; inset:0; background: rgba(30,32,26,0.45);
+  display:flex; align-items:flex-end; justify-content:center;
+  z-index: 50; opacity:0; pointer-events:none; transition:opacity .22s ease;
+}
+.overlay.open{ opacity:1; pointer-events:auto; }
+@media (min-width:640px){
+  .overlay{ align-items:center; }
+}
+
+.sheet{
+  background: var(--paper);
+  width:100%; max-width:640px;
+  height:92vh; max-height:820px;
+  border-radius: 10px 10px 0 0;
+  border: 1px solid var(--ink);
+  border-bottom:none;
+  display:flex; flex-direction:column;
+  transform: translateY(24px);
+  transition: transform .26s cubic-bezier(.2,.8,.2,1);
+  box-shadow: var(--shadow-lg);
+  overflow:hidden;
+}
+.overlay.open .sheet{ transform: translateY(0); }
+@media (min-width:640px){
+  .sheet{ border-radius: 10px; height:86vh; border-bottom:1px solid var(--ink); }
+}
+
+.sheet-header{
+  padding: 18px 20px 12px;
+  display:flex; align-items:center; justify-content:space-between;
+  border-bottom: 2px solid var(--ink);
+  flex-shrink:0;
+}
+.sheet-header h3{
+  font-family: var(--font-display); font-weight:600; font-size:20px; margin:0;
+}
+.sheet-header .sub{ font-size:12px; color:var(--muted); margin-top:2px;}
+.close-x{
+  width:32px;height:32px;border-radius:50%; border:1px solid var(--paper-line); background: var(--card);
+  font-size:15px; color:var(--ink-soft);
+}
+
+/* ---------- Day view timeline+checklist ---------- */
+.day-body{ flex:1; overflow-y:auto; position:relative; padding: 14px 12px 40px; }
+.timeline-wrap{
+  display:grid; grid-template-columns: 40px 1fr 26px 1fr;
+  gap:0 6px; position:relative;
+}
+.hours-col{ position:relative; }
+.hour-label{
+  position:absolute; left:0; font-family:var(--font-mono); font-size:10px;
+  color:var(--muted); transform:translateY(-6px);
+}
+.hour-lines{ position:relative; }
+.hour-gridline{
+  position:absolute; left:0; right:0; border-top:1px dashed var(--paper-line);
+}
+.blocks-col, .gutter-col, .check-col{ position:relative; }
+
+.tblock{
+  position:absolute; left:2px; right:2px;
+  border-radius:2px; border-left:4px solid var(--c);
+  border-top:1px solid var(--paper-line); border-right:1px solid var(--paper-line); border-bottom:1px solid var(--paper-line);
+  background: var(--card);
+  padding:5px 8px; overflow:hidden;
+  font-size:12px; box-shadow:none;
+}
+.tblock .t-title{ font-weight:700; color:var(--ink); font-size:12.5px; line-height:1.25;}
+.tblock .t-time{ font-family:var(--font-mono); font-size:10px; color:var(--ink-soft); margin-top:1px;}
+.tblock .t-del{
+  position:absolute; top:3px; right:4px; border:none; background:transparent;
+  color:var(--muted); font-size:12px; padding:2px;
+}
+.tblock.imported::after{
+  content:'에타'; position:absolute; bottom:3px; right:6px; font-size:8.5px;
+  color: var(--muted); font-family: var(--font-mono);
+}
+
+.connector{
+  position:absolute; left:0; right:0; border-top:1.5px dashed var(--red-pen);
+  opacity:0.55;
+}
+
+.check-item{
+  position:absolute; left:2px; right:2px;
+  display:flex; align-items:flex-start; gap:6px;
+  padding:5px 6px; border-radius:2px;
+  background: var(--card); border:1px solid var(--paper-line);
+  font-size:12px;
+}
+.check-item.done{ opacity:0.55; }
+.check-item.done .c-text{ text-decoration: line-through; }
+.check-item input[type=checkbox]{
+  margin-top:2px; width:14px; height:14px; accent-color: var(--red-pen); flex-shrink:0;
+}
+.c-text{ line-height:1.3; word-break:break-word; }
+
+.empty-day{
+  text-align:center; color:var(--muted); font-size:13px; padding:60px 20px;
+}
+.empty-day .em-icon{ font-size:26px; display:block; margin-bottom:8px; }
+
+/* ---------- FAB ---------- */
+.fab{
+  position:absolute; right:18px; bottom:18px;
+  width:52px; height:52px; border-radius:50%;
+  background: var(--ink); color:#fff; border:none;
+  font-size:24px; box-shadow: 0 4px 12px rgba(0,0,0,0.22);
+  display:flex; align-items:center; justify-content:center;
+  z-index:5;
+}
+
+/* ---------- Add-block form panel ---------- */
+.add-panel{
+  position:absolute; left:12px; right:12px; bottom:0;
+  background: var(--card); border-radius:8px 8px 0 0;
+  border:1px solid var(--ink); border-bottom:none;
+  box-shadow: 0 -6px 18px rgba(0,0,0,0.12);
+  padding: 16px 16px 20px;
+  transform: translateY(110%);
+  transition: transform .24s cubic-bezier(.2,.8,.2,1);
+  z-index: 8;
+}
+.add-panel.open{ transform: translateY(0); }
+.add-panel h4{ margin:0 0 10px; font-family: var(--font-display); font-weight:600; font-size:16px;}
+.field{ margin-bottom:10px; }
+.field label{ display:block; font-size:11.5px; color:var(--muted); margin-bottom:4px; font-weight:600;}
+.field input, .field select, .field textarea{
+  width:100%; padding:9px 10px; border-radius:2px; border:1px solid var(--paper-line);
+  font-size:14px; background:#fff; color:var(--ink);
+}
+.field input:focus, .field select:focus, .field textarea:focus{
+  outline:none; border-color: var(--ink);
+}
+.field-row{ display:flex; gap:10px; }
+.field-row .field{ flex:1; }
+.cat-picker{ display:flex; gap:6px; flex-wrap:wrap; }
+.cat-chip{
+  border:1px solid var(--ink); border-radius:2px; padding:6px 11px;
+  font-size:12px; background:#fff; color:var(--ink-soft); display:flex; align-items:center; gap:5px;
+}
+.cat-chip .sw{ width:8px;height:8px;border-radius:50%; }
+.cat-chip.selected{ border-color: var(--ink); background: var(--ink); color:#fff; }
+.panel-actions{ display:flex; gap:8px; margin-top:6px; }
+.btn{
+  flex:1; padding:11px; border-radius:2px; border:none; font-size:14px; font-weight:600;
+}
+.btn-primary{ background: var(--ink); color:#fff; }
+.btn-ghost{ background: transparent; color: var(--ink-soft); border:1px solid var(--ink); }
+
+/* ---------- Import modal ---------- */
+.import-body{ padding:18px 20px 30px; overflow-y:auto; flex:1; }
+.import-body p.hint{ font-size:13px; color:var(--ink-soft); line-height:1.6; margin-top:0;}
+.drop-zone{
+  border:1.5px dashed var(--ink); border-radius:2px; padding:22px 16px;
+  text-align:center; color:var(--muted); font-size:13px; margin-bottom:14px; background:var(--card);
+}
+.drop-zone input[type=file]{ margin-top:8px; }
+textarea.ics-paste{ width:100%; min-height:120px; border-radius:2px; border:1px solid var(--paper-line); padding:10px; font-family:var(--font-mono); font-size:11.5px; resize:vertical; }
+.import-result{ margin-top:14px; font-size:13px; background:var(--card); border:1px solid var(--ink); border-radius:2px; padding:12px 14px; }
+.import-result.ok{ border-left:4px solid var(--ink); }
+.import-result.err{ border-left:4px solid var(--red-pen); }
+
+/* ---------- Notification modal ---------- */
+.notif-body{ padding:18px 20px 30px; overflow-y:auto; flex:1; }
+.notif-body p{ font-size:13.5px; line-height:1.7; color:var(--ink-soft); }
+.notif-status{
+  display:flex; align-items:center; gap:10px; background:var(--card);
+  border:1px solid var(--ink); border-radius:2px; padding:12px 14px; margin-bottom:14px;
+}
+.notif-status .dot-status{ width:10px;height:10px;border-radius:50%; }
+.notif-list{ list-style:none; padding:0; margin:0; }
+.notif-list li{
+  display:flex; justify-content:space-between; gap:10px;
+  padding:9px 0; border-bottom:1px solid var(--paper-line); font-size:12.5px;
+}
+.notif-list li .n-time{ font-family: var(--font-mono); color:var(--muted); flex-shrink:0; }
+.note-box{
+  margin-top:16px; background: #fff;
+  border:1px solid var(--paper-line); border-left:3px solid var(--ink);
+  border-radius:2px; padding:12px 14px; font-size:12px; color:var(--ink-soft); line-height:1.6;
+}
+
+.toast{
+  position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
+  background: var(--ink); color:#fff; padding:11px 18px; border-radius:2px;
+  font-size:13px; opacity:0; pointer-events:none; transition:all .25s ease; z-index:100;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.2);
+}
+.toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+@media (max-width:380px){
+  .timeline-wrap{ grid-template-columns: 32px 1fr 18px 1fr; }
+  .brand h1{ font-size:23px; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="app-header">
+    <div class="brand">
+      <h1>윤세빈 스케줄러</h1>
+      <p></p>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" id="btnNotif" title="알림 설정">알</button>
+      <button class="icon-btn" id="btnImport" title="에브리타임 가져오기">에</button>
+    </div>
+  </div>
+
+  <div class="month-bar">
+    <button class="nav-btn" id="prevMonth">‹</button>
+    <h2 id="monthLabel">2026년 8월</h2>
+    <button class="nav-btn" id="nextMonth">›</button>
+  </div>
+  <div style="text-align:center; margin-bottom:14px;">
+    <button class="today-btn" id="btnToday">오늘로 이동</button>
+  </div>
+
+  <div class="weekday-row">
+    <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+  </div>
+  <div class="cal-grid" id="calGrid"></div>
+</div>
+
+<!-- Day view sheet -->
+<div class="overlay" id="dayOverlay">
+  <div class="sheet">
+    <div class="sheet-header">
+      <div>
+        <h3 id="dayTitle">8월 16일</h3>
+        <div class="sub" id="daySub">일요일</div>
+      </div>
+      <button class="close-x" id="closeDay">✕</button>
+    </div>
+    <div class="day-body" id="dayBody">
+      <!-- timeline injected here -->
+      <button class="fab" id="fabAdd">＋</button>
+      <div class="add-panel" id="addPanel">
+        <h4>새 일정 추가</h4>
+        <div class="field">
+          <label>제목</label>
+          <input type="text" id="fTitle" placeholder="예: 자료구조 과제 정리">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>시작 시간</label>
+            <input type="time" id="fStart" value="09:00">
+          </div>
+          <div class="field">
+            <label>종료 시간</label>
+            <input type="time" id="fEnd" value="10:00">
+          </div>
+        </div>
+        <div class="field">
+          <label>분류</label>
+          <div class="cat-picker" id="catPicker"></div>
+        </div>
+        <div class="panel-actions">
+          <button class="btn btn-ghost" id="cancelAdd">취소</button>
+          <button class="btn btn-primary" id="submitAdd">추가하기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Everytime import modal -->
+<div class="overlay" id="importOverlay">
+  <div class="sheet" style="height:auto; max-height:88vh;">
+    <div class="sheet-header">
+      <div>
+        <h3>에브리타임 시간표 가져오기</h3>
+        <div class="sub">ICS 파일 또는 텍스트로 시간표를 불러와요</div>
+      </div>
+      <button class="close-x" id="closeImport">✕</button>
+    </div>
+    <div class="import-body">
+      <p class="hint">에브리타임 앱 &rarr; 시간표 &rarr; 내보내기(iCalendar) 로 받은 .ics 파일을 올리거나, 내용을 그대로 붙여넣으세요. 요일 반복 수업을 학기 끝까지 자동으로 채워드려요.</p>
+      <div class="drop-zone">
+        📅 .ics 파일 선택<br>
+        <input type="file" id="icsFile" accept=".ics,text/calendar">
+      </div>
+      <div class="field">
+        <label>또는 ICS 텍스트 붙여넣기</label>
+        <textarea class="ics-paste" id="icsPaste" placeholder="BEGIN:VCALENDAR..."></textarea>
+      </div>
+      <div class="field">
+        <label>학기 종료일 (반복 수업을 언제까지 채울지)</label>
+        <input type="date" id="semesterEnd">
+      </div>
+      <div class="panel-actions">
+        <button class="btn btn-primary" id="btnParse" style="flex:1;">시간표 변환하기</button>
+      </div>
+      <div id="importResult"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Notification modal -->
+<div class="overlay" id="notifOverlay">
+  <div class="sheet" style="height:auto; max-height:80vh;">
+    <div class="sheet-header">
+      <div>
+        <h3>알림 설정</h3>
+        <div class="sub">일정 시작 10분 전, 잊지 않도록 알려드려요</div>
+      </div>
+      <button class="close-x" id="closeNotif">✕</button>
+    </div>
+    <div class="notif-body">
+      <div class="notif-status" id="notifStatus">
+        <span class="dot-status" id="notifDot" style="background:var(--muted);"></span>
+        <span id="notifStatusText">알림 권한 확인 중...</span>
+      </div>
+      <button class="btn btn-primary" id="btnEnableNotif" style="width:100%;">알림 켜기</button>
+      <p style="margin-top:16px; font-weight:700; font-size:13px;">예약된 알림</p>
+      <ul class="notif-list" id="notifList"></ul>
+      <div class="note-box">
+        ⌚️ <b>Apple Watch 연동 안내</b> — 브라우저는 보안상 실제 기기 푸시(APNs)를 직접 보낼 수 없어요. 이 웹 앱을 Capacitor로 감싸 iOS 앱으로 배포하면, <code>@capacitor/local-notifications</code> API가 지금과 동일한 예약 로직을 그대로 사용해 iPhone과 미러링된 Apple Watch에 알림을 표시할 수 있어요. 지금은 탭이 열려있는 동안 브라우저 알림으로 동작을 미리 확인할 수 있도록 구현했어요.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   스케줄노트 — state & constants
+   ========================================================= */
+const CATS = {
+  class:      { label:'수업', color:'#111111' },
+  assignment: { label:'과제', color:'#C0392B' },
+  job:        { label:'알바', color:'#555555' },
+  personal:   { label:'개인', color:'#888888' },
+  etc:        { label:'기타', color:'#BBBBBB' },
+};
+const WD = ['일','월','화','수','목','금','토'];
+const DAY_START = 8;   // 08:00
+const DAY_END = 22;    // 22:00
+const PX_PER_MIN = 1;  // 1 minute = 1px
+
+let events = [];               // {id,date,title,start,end,category,checklist:[{id,text,done}],imported}
+let viewYear, viewMonth;       // month grid state (0-indexed month)
+let selectedDate = null;       // 'YYYY-MM-DD' currently open in day sheet
+let notifTimers = [];          // active setTimeout handles
+let selectedCat = 'class';
+
+const $ = (sel, root=document) => root.querySelector(sel);
+const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+const pad2 = n => String(n).padStart(2,'0');
+const isoDate = (y,m,d) => `${y}-${pad2(m+1)}-${pad2(d)}`;
+const uid = () => 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+
+/* =========================================================
+   Persistence (window.storage — personal, per-user)
+   ========================================================= */
+async function loadEvents(){
+  try{
+    const stored = localStorage.getItem('scheduler:events');
+    events = stored ? JSON.parse(stored) : null;
+  }catch(e){ events = null; }
+  if(!events){
+    events = seedSampleEvents();
+    saveEvents();
+  }
+}
+function saveEvents(){
+  try{ localStorage.setItem('scheduler:events', JSON.stringify(events)); }
+  catch(e){ console.error('저장 실패', e); }
+}
+function seedSampleEvents(){
+  const t = new Date();
+  const today = isoDate(t.getFullYear(), t.getMonth(), t.getDate());
+  return [
+    { id:uid(), date:today, title:'자료구조 수업', start:'09:00', end:'10:30', category:'class', imported:false,
+      checklist:[{id:uid(), text:'자료구조 수업', done:false}] },
+    { id:uid(), date:today, title:'과제 - 트리 구현', start:'14:00', end:'16:00', category:'assignment', imported:false,
+      checklist:[{id:uid(), text:'과제 - 트리 구현', done:false},{id:uid(), text:'제출 전 코드 리뷰', done:false}] },
+    { id:uid(), date:today, title:'카페 알바', start:'18:00', end:'21:00', category:'job', imported:false,
+      checklist:[{id:uid(), text:'카페 알바', done:true}] },
+  ];
+}
+
+/* =========================================================
+   Month calendar rendering
+   ========================================================= */
+function renderMonth(){
+  $('#monthLabel').textContent = `${viewYear}년 ${viewMonth+1}월`;
+  const grid = $('#calGrid');
+  grid.innerHTML = '';
+
+  const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
+  const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate();
+
+  const today = new Date();
+  const todayISO = isoDate(today.getFullYear(), today.getMonth(), today.getDate());
+
+  const byDate = {};
+  for(const ev of events){ (byDate[ev.date] ||= []).push(ev); }
+
+  const cells = [];
+  // leading days from previous month
+  for(let i=firstDay-1; i>=0; i--){
+    cells.push({d: daysInPrevMonth-i, other:true, dow:(firstDay-1-i)%7});
+  }
+  // current month
+  for(let d=1; d<=daysInMonth; d++){
+    cells.push({d, other:false});
+  }
+  // trailing days to complete grid (multiple of 7)
+  let trail = 1;
+  while(cells.length % 7 !== 0){ cells.push({d:trail++, other:true, trailing:true}); }
+
+  cells.forEach((c, idx) => {
+    const dow = idx % 7;
+    const cell = document.createElement('button');
+    cell.className = 'day-cell' + (c.other ? ' other-month' : '') + (dow===0 ? ' sunday' : '');
+    let cellISO;
+    if(c.other && !c.trailing){
+      const pm = viewMonth===0 ? 11 : viewMonth-1;
+      const py = viewMonth===0 ? viewYear-1 : viewYear;
+      cellISO = isoDate(py, pm, c.d);
+    } else if(c.trailing){
+      const nm = viewMonth===11 ? 0 : viewMonth+1;
+      const ny = viewMonth===11 ? viewYear+1 : viewYear;
+      cellISO = isoDate(ny, nm, c.d);
+    } else {
+      cellISO = isoDate(viewYear, viewMonth, c.d);
+      if(cellISO === todayISO) cell.classList.add('today');
+    }
+    cell.dataset.date = cellISO;
+    const dayEvents = byDate[cellISO] || [];
+    const shown = dayEvents.slice(0,4);
+    const extra = dayEvents.length - shown.length;
+    cell.innerHTML = `
+      <span class="num">${c.d}</span>
+      <div class="dots">
+        ${shown.map(ev => `<span class="dot" style="background:${CATS[ev.category]?.color||'#999'}"></span>`).join('')}
+        ${extra>0 ? `<span class="more-tag">+${extra}</span>` : ''}
+      </div>`;
+    cell.addEventListener('click', () => openDay(cellISO));
+    grid.appendChild(cell);
+  });
+}
+
+function shiftMonth(delta){
+  viewMonth += delta;
+  if(viewMonth<0){ viewMonth=11; viewYear--; }
+  if(viewMonth>11){ viewMonth=0; viewYear++; }
+  renderMonth();
+}
+
+/* =========================================================
+   Day sheet — timeline + checklist
+   ========================================================= */
+function openDay(dateISO){
+  selectedDate = dateISO;
+  const d = new Date(dateISO + 'T00:00:00');
+  $('#dayTitle').textContent = `${d.getMonth()+1}월 ${d.getDate()}일`;
+  $('#daySub').textContent = `${WD[d.getDay()]}요일`;
+  renderDayTimeline();
+  $('#dayOverlay').classList.add('open');
+}
+function closeDay(){
+  $('#dayOverlay').classList.remove('open');
+  closeAddPanel();
+}
+
+function renderDayTimeline(){
+  const body = $('#dayBody');
+  // clear previous timeline content but keep fab + add-panel
+  $$('.timeline-wrap, .empty-day', body).forEach(el => el.remove());
+
+  const dayEvents = events.filter(e => e.date === selectedDate).sort((a,b)=> a.start.localeCompare(b.start));
+
+  if(dayEvents.length === 0){
+    const empty = document.createElement('div');
+    empty.className = 'empty-day';
+    empty.innerHTML = `<span class="em-icon">🗒️</span>이 날은 아직 비어있어요.<br>오른쪽 아래 ＋ 버튼으로 일정을 추가해보세요.`;
+    body.insertBefore(empty, $('#fabAdd'));
+    return;
+  }
+
+  const totalMin = (DAY_END - DAY_START) * 60;
+  const wrap = document.createElement('div');
+  wrap.className = 'timeline-wrap';
+  wrap.style.minHeight = (totalMin * PX_PER_MIN + 20) + 'px';
+
+  const hoursCol = document.createElement('div'); hoursCol.className = 'hours-col';
+  const hourLines = document.createElement('div'); hourLines.className = 'hour-lines';
+  hourLines.style.height = (totalMin*PX_PER_MIN)+'px';
+  const blocksCol = document.createElement('div'); blocksCol.className = 'blocks-col';
+  blocksCol.style.height = (totalMin*PX_PER_MIN)+'px';
+  const gutterCol = document.createElement('div'); gutterCol.className = 'gutter-col';
+  gutterCol.style.height = (totalMin*PX_PER_MIN)+'px';
+  const checkCol = document.createElement('div'); checkCol.className = 'check-col';
+  checkCol.style.height = (totalMin*PX_PER_MIN)+'px';
+
+  for(let h=DAY_START; h<=DAY_END; h++){
+    const top = (h-DAY_START)*60*PX_PER_MIN;
+    const lbl = document.createElement('div');
+    lbl.className='hour-label'; lbl.style.top = top+'px';
+    lbl.textContent = pad2(h)+':00';
+    hoursCol.appendChild(lbl);
+    if(h < DAY_END){
+      const gl = document.createElement('div');
+      gl.className='hour-gridline'; gl.style.top = top+'px';
+      hourLines.appendChild(gl);
+    }
+  }
+  hoursCol.appendChild(hourLines);
+
+  const toMin = t => { const [h,m] = t.split(':').map(Number); return h*60+m; };
+
+  dayEvents.forEach(ev => {
+    const startMin = Math.max(toMin(ev.start) - DAY_START*60, 0);
+    const endMin = Math.min(toMin(ev.end) - DAY_START*60, totalMin);
+    const top = startMin * PX_PER_MIN;
+    const height = Math.max((endMin-startMin) * PX_PER_MIN, 26);
+    const c = CATS[ev.category]?.color || '#999';
+
+    const block = document.createElement('div');
+    block.className = 'tblock' + (ev.imported ? ' imported' : '');
+    block.style.top = top+'px'; block.style.height = height+'px';
+    block.style.setProperty('--c', c);
+    block.innerHTML = `
+      <button class="t-del" data-id="${ev.id}" title="삭제">✕</button>
+      <div class="t-title">${escapeHtml(ev.title)}</div>
+      <div class="t-time">${ev.start}–${ev.end}</div>`;
+    blocksCol.appendChild(block);
+
+    const connector = document.createElement('div');
+    connector.className = 'connector';
+    connector.style.top = (top + height/2)+'px';
+    gutterCol.appendChild(connector);
+
+    // checklist items linked to this block, stacked starting at block top
+    const items = ev.checklist && ev.checklist.length ? ev.checklist : [{id:uid(), text:ev.title, done:false}];
+    let itemTop = top;
+    items.forEach(item => {
+      const li = document.createElement('label');
+      li.className = 'check-item' + (item.done ? ' done' : '');
+      li.style.top = itemTop+'px';
+      li.innerHTML = `<input type="checkbox" data-ev="${ev.id}" data-item="${item.id}" ${item.done?'checked':''}>
+        <span class="c-text">${escapeHtml(item.text)}</span>`;
+      checkCol.appendChild(li);
+      itemTop += 34;
+    });
+  });
+
+  wrap.appendChild(hoursCol);
+  wrap.appendChild(blocksCol);
+  wrap.appendChild(gutterCol);
+  wrap.appendChild(checkCol);
+  body.insertBefore(wrap, $('#fabAdd'));
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+/* checkbox toggle + delete via delegation */
+document.addEventListener('change', async (e) => {
+  if(e.target.matches('.check-item input[type=checkbox]')){
+    const evId = e.target.dataset.ev, itemId = e.target.dataset.item;
+    const ev = events.find(x=>x.id===evId);
+    if(!ev) return;
+    const item = (ev.checklist||[]).find(i=>i.id===itemId);
+    if(item){ item.done = e.target.checked; }
+    await saveEvents();
+    renderDayTimeline();
+    renderMonth();
+  }
+});
+document.addEventListener('click', async (e) => {
+  if(e.target.matches('.t-del')){
+    const id = e.target.dataset.id;
+    events = events.filter(ev => ev.id !== id);
+    await saveEvents();
+    renderDayTimeline();
+    renderMonth();
+    showToast('일정을 삭제했어요');
+  }
+});
+
+/* =========================================================
+   Add-block panel
+   ========================================================= */
+function buildCatPicker(){
+  const wrap = $('#catPicker');
+  wrap.innerHTML = Object.entries(CATS).map(([key,c]) => `
+    <button type="button" class="cat-chip ${key===selectedCat?'selected':''}" data-cat="${key}">
+      <span class="sw" style="background:${c.color}"></span>${c.label}
+    </button>`).join('');
+  $$('.cat-chip', wrap).forEach(chip => {
+    chip.addEventListener('click', () => {
+      selectedCat = chip.dataset.cat;
+      $$('.cat-chip', wrap).forEach(c=>c.classList.remove('selected'));
+      chip.classList.add('selected');
+    });
+  });
+}
+function openAddPanel(){
+  $('#addPanel').classList.add('open');
+  $('#fTitle').value = '';
+  const now = new Date();
+  const nextHour = Math.min(now.getHours()+1, DAY_END-1);
+  $('#fStart').value = `${pad2(nextHour)}:00`;
+  $('#fEnd').value = `${pad2(Math.min(nextHour+1,DAY_END))}:00`;
+  buildCatPicker();
+  setTimeout(()=> $('#fTitle').focus(), 200);
+}
+function closeAddPanel(){ $('#addPanel').classList.remove('open'); }
+
+async function submitAdd(){
+  const title = $('#fTitle').value.trim();
+  const start = $('#fStart').value;
+  const end = $('#fEnd').value;
+  if(!title){ showToast('제목을 입력해주세요'); return; }
+  if(!start || !end || start>=end){ showToast('시작 시간이 종료 시간보다 빨라야 해요'); return; }
+  const newEv = {
+    id: uid(), date: selectedDate, title, start, end, category: selectedCat, imported:false,
+    checklist: [{ id: uid(), text: title, done:false }]
+  };
+  events.push(newEv);
+  await saveEvents();
+  closeAddPanel();
+  renderDayTimeline();
+  renderMonth();
+  scheduleAllNotifications();
+  showToast('일정과 체크리스트를 추가했어요');
+}
+
+/* =========================================================
+   Everytime ICS import
+   ========================================================= */
+const DAYCODE = { SU:0, MO:1, TU:2, WE:3, TH:4, FR:5, SA:6 };
+
+function unfoldICS(text){
+  const lines = text.replace(/\r\n/g,'\n').split('\n');
+  const out = [];
+  for(const line of lines){
+    if(/^[ \t]/.test(line) && out.length){ out[out.length-1] += line.slice(1); }
+    else out.push(line);
+  }
+  return out;
+}
+function parseICSDateStr(v){
+  const m = v.match(/(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2}))?/);
+  if(!m) return null;
+  return { y:+m[1], mo:+m[2], d:+m[3], h: m[4]?+m[4]:0, mi: m[5]?+m[5]:0 };
+}
+function parseICS(text){
+  const lines = unfoldICS(text);
+  const vevents = [];
+  let cur = null;
+  for(const raw of lines){
+    const line = raw.trim();
+    if(line.startsWith('BEGIN:VEVENT')){ cur = {}; }
+    else if(line.startsWith('END:VEVENT')){ if(cur) vevents.push(cur); cur=null; }
+    else if(cur){
+      const idx = line.indexOf(':');
+      if(idx<0) continue;
+      let key = line.slice(0, idx);
+      const value = line.slice(idx+1);
+      key = key.split(';')[0].toUpperCase();
+      if(key==='DTSTART') cur.dtstart = value;
+      else if(key==='DTEND') cur.dtend = value;
+      else if(key==='RRULE') cur.rrule = value;
+      else if(key==='SUMMARY') cur.summary = value;
+      else if(key==='LOCATION') cur.location = value;
+    }
+  }
+  return vevents;
+}
+function parseRRule(r){
+  const parts = {};
+  r.split(';').forEach(p => { const [k,v] = p.split('='); parts[k]=v; });
+  const byday = parts.BYDAY ? parts.BYDAY.split(',') : [];
+  let until = null;
+  if(parts.UNTIL){ const d = parseICSDateStr(parts.UNTIL); if(d) until = new Date(d.y, d.mo-1, d.d); }
+  return { freq: parts.FREQ, byday, until };
+}
+function addDays(date, n){ const d = new Date(date); d.setDate(d.getDate()+n); return d; }
+
+function generateInstancesFromVEvent(ve, semesterEndDate){
+  const results = [];
+  const startD = parseICSDateStr(ve.dtstart);
+  const endD = parseICSDateStr(ve.dtend);
+  if(!startD) return results;
+  const startTime = `${pad2(startD.h)}:${pad2(startD.mi)}`;
+  const endTime = endD ? `${pad2(endD.h)}:${pad2(endD.mi)}` : startTime;
+  const title = (ve.summary || '수업').trim();
+  const baseDate = new Date(startD.y, startD.mo-1, startD.d);
+
+  if(!ve.rrule){
+    results.push({ date: isoDate(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate()), start:startTime, end:endTime, title });
+    return results;
+  }
+  const rule = parseRRule(ve.rrule);
+  const until = rule.until && rule.until < semesterEndDate ? rule.until : semesterEndDate;
+  const bydays = rule.byday.length ? rule.byday.map(c => DAYCODE[c]).filter(v=>v!==undefined) : [baseDate.getDay()];
+
+  // find the Sunday that begins baseDate's week
+  const weekStart = addDays(baseDate, -baseDate.getDay());
+  let cursorWeek = weekStart;
+  let guard = 0;
+  while(cursorWeek <= until && guard < 60){
+    for(const wd of bydays){
+      const occ = addDays(cursorWeek, wd);
+      if(occ >= baseDate && occ <= until){
+        results.push({ date: isoDate(occ.getFullYear(), occ.getMonth(), occ.getDate()), start:startTime, end:endTime, title });
+      }
+    }
+    cursorWeek = addDays(cursorWeek, 7);
+    guard++;
+  }
+  return results;
+}
+
+async function handleParseICS(){
+  const resultBox = $('#importResult');
+  resultBox.innerHTML = '';
+  const fileInput = $('#icsFile');
+  const pasteText = $('#icsPaste').value.trim();
+  const semesterEndVal = $('#semesterEnd').value;
+  const semesterEnd = semesterEndVal ? new Date(semesterEndVal+'T23:59:59') : addDays(new Date(), 16*7);
+
+  let text = pasteText;
+  if(fileInput.files && fileInput.files[0]){
+    text = await fileInput.files[0].text();
+  }
+  if(!text){
+    resultBox.innerHTML = `<div class="import-result err">ICS 파일을 선택하거나 텍스트를 붙여넣어주세요.</div>`;
+    return;
+  }
+  let vevents;
+  try{ vevents = parseICS(text); }
+  catch(e){
+    resultBox.innerHTML = `<div class="import-result err">ICS 파일을 읽는 중 문제가 생겼어요. 형식을 확인해주세요.</div>`;
+    return;
+  }
+  if(!vevents.length){
+    resultBox.innerHTML = `<div class="import-result err">가져올 수업 정보를 찾지 못했어요.</div>`;
+    return;
+  }
+
+  let added = 0;
+  const courseNames = new Set();
+  vevents.forEach(ve => {
+    const instances = generateInstancesFromVEvent(ve, semesterEnd);
+    instances.forEach(inst => {
+      events.push({
+        id: uid(), date: inst.date, title: inst.title, start: inst.start, end: inst.end,
+        category: 'class', imported: true,
+        checklist: [{ id: uid(), text: inst.title, done:false }]
+      });
+      added++;
+    });
+    courseNames.add(ve.summary || '수업');
+  });
+
+  await saveEvents();
+  renderMonth();
+  scheduleAllNotifications();
+  resultBox.innerHTML = `<div class="import-result ok">✅ ${courseNames.size}개 과목, 총 ${added}개의 수업 일정을 불러왔어요.</div>`;
+  showToast('시간표를 캘린더에 반영했어요');
+}
+
+/* =========================================================
+   Notifications
+   ========================================================= */
+function updateNotifStatus(){
+  const dot = $('#notifDot'), text = $('#notifStatusText'), btn = $('#btnEnableNotif');
+  if(!('Notification' in window)){
+    dot.style.background = 'var(--muted)'; text.textContent = '이 브라우저는 알림을 지원하지 않아요';
+    btn.style.display='none'; return;
+  }
+  const perm = Notification.permission;
+  if(perm === 'granted'){
+    dot.style.background = 'var(--ink)'; text.textContent = '알림이 켜져있어요';
+    btn.textContent = '알림 다시 예약하기';
+    $('#btnNotif').classList.add('active');
+  } else if(perm === 'denied'){
+    dot.style.background = 'var(--red-pen)'; text.textContent = '브라우저 설정에서 알림이 차단되어 있어요';
+    btn.textContent = '브라우저 설정에서 허용해주세요';
+  } else {
+    dot.style.background = 'var(--muted)'; text.textContent = '아직 알림 권한을 허용하지 않았어요';
+    btn.textContent = '알림 켜기';
+  }
+}
+async function enableNotifications(){
+  if(!('Notification' in window)) return;
+  const perm = await Notification.requestPermission();
+  updateNotifStatus();
+  if(perm === 'granted'){
+    scheduleAllNotifications();
+    showToast('알림이 켜졌어요');
+    renderNotifList();
+  }
+}
+function scheduleAllNotifications(){
+  notifTimers.forEach(t => clearTimeout(t));
+  notifTimers = [];
+  if(!('Notification' in window) || Notification.permission !== 'granted') { renderNotifList(); return; }
+  const now = new Date();
+  events.forEach(ev => {
+    const [h,m] = ev.start.split(':').map(Number);
+    const startAt = new Date(ev.date + 'T00:00:00');
+    startAt.setHours(h, m, 0, 0);
+    const notifyAt = new Date(startAt.getTime() - 10*60*1000);
+    const delay = notifyAt.getTime() - now.getTime();
+    // browser setTimeout max ~24.8 days; skip anything further out or in the past
+    if(delay > 0 && delay < 24*24*60*60*1000){
+      const timer = setTimeout(() => {
+        try{
+          new Notification('곧 시작해요 ⏰', {
+            body: `${ev.title} · ${ev.start} 시작 (10분 전 알림)`,
+            tag: ev.id,
+          });
+        }catch(e){}
+      }, delay);
+      notifTimers.push(timer);
+    }
+  });
+  renderNotifList();
+}
+function renderNotifList(){
+  const list = $('#notifList');
+  const now = new Date();
+  const upcoming = [];
+  events.forEach(ev => {
+    const [h,m] = ev.start.split(':').map(Number);
+    const startAt = new Date(ev.date + 'T00:00:00');
+    startAt.setHours(h, m, 0, 0);
+    const notifyAt = new Date(startAt.getTime() - 10*60*1000);
+    if(notifyAt > now) upcoming.push({ev, notifyAt});
+  });
+  upcoming.sort((a,b)=> a.notifyAt - b.notifyAt);
+  if(!upcoming.length){
+    list.innerHTML = `<li style="color:var(--muted); border:none;">예약된 알림이 없어요</li>`;
+    return;
+  }
+  list.innerHTML = upcoming.slice(0,20).map(({ev, notifyAt}) => `
+    <li>
+      <span>${escapeHtml(ev.title)}</span>
+      <span class="n-time">${pad2(notifyAt.getMonth()+1)}/${pad2(notifyAt.getDate())} ${pad2(notifyAt.getHours())}:${pad2(notifyAt.getMinutes())}</span>
+    </li>`).join('');
+}
+
+/* =========================================================
+   Toast helper
+   ========================================================= */
+let toastTimer;
+function showToast(msg){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> t.classList.remove('show'), 2200);
+}
+
+/* =========================================================
+   Wire up events & init
+   ========================================================= */
+function initListeners(){
+  $('#prevMonth').addEventListener('click', ()=> shiftMonth(-1));
+  $('#nextMonth').addEventListener('click', ()=> shiftMonth(1));
+  $('#btnToday').addEventListener('click', ()=>{
+    const t = new Date(); viewYear=t.getFullYear(); viewMonth=t.getMonth(); renderMonth();
+  });
+  $('#closeDay').addEventListener('click', closeDay);
+  $('#dayOverlay').addEventListener('click', (e)=>{ if(e.target.id==='dayOverlay') closeDay(); });
+
+  $('#fabAdd').addEventListener('click', openAddPanel);
+  $('#cancelAdd').addEventListener('click', closeAddPanel);
+  $('#submitAdd').addEventListener('click', submitAdd);
+
+  $('#btnImport').addEventListener('click', ()=>{
+    const d = addDays(new Date(), 16*7);
+    $('#semesterEnd').value = `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+    $('#importOverlay').classList.add('open');
+  });
+  $('#closeImport').addEventListener('click', ()=> $('#importOverlay').classList.remove('open'));
+  $('#importOverlay').addEventListener('click', (e)=>{ if(e.target.id==='importOverlay') $('#importOverlay').classList.remove('open'); });
+  $('#btnParse').addEventListener('click', handleParseICS);
+
+  $('#btnNotif').addEventListener('click', ()=>{
+    updateNotifStatus(); renderNotifList();
+    $('#notifOverlay').classList.add('open');
+  });
+  $('#closeNotif').addEventListener('click', ()=> $('#notifOverlay').classList.remove('open'));
+  $('#notifOverlay').addEventListener('click', (e)=>{ if(e.target.id==='notifOverlay') $('#notifOverlay').classList.remove('open'); });
+  $('#btnEnableNotif').addEventListener('click', enableNotifications);
+}
+
+async function init(){
+  const t = new Date();
+  viewYear = t.getFullYear(); viewMonth = t.getMonth();
+  await loadEvents();
+  renderMonth();
+  initListeners();
+  updateNotifStatus();
+  if('Notification' in window && Notification.permission === 'granted'){
+    scheduleAllNotifications();
+  }
+}
+// Capacitor 알림 발송 함수 정의
+async function scheduleCapacitorNotification() {
+  const LocalNotifications = Capacitor.Plugins.LocalNotifications;
+
+  // 1. 알림 권한 요청
+  const perm = await LocalNotifications.requestPermissions();
+  if (perm.display !== 'granted') return;
+
+  // 2. 알림 예약 (5초 후 알림 발송 예시)
+  await LocalNotifications.schedule({
+    notifications: [
+      {
+        title: "일정 알림",
+        body: "할 일이 등록되었습니다.",
+        id: 1,
+        schedule: { at: new Date(Date.now() + 1000 * 5) }
+      }
+    ]
+  });
+}
+
+async function init(){
+  const t = new Date();
+  viewYear = t.getFullYear(); viewMonth = t.getMonth();
+  await loadEvents();
+  renderMonth();
+  initListeners();
+  updateNotifStatus();
+
+  // 앱 실행 시 Capacitor 알림 실행 테스트
+  if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+    scheduleCapacitorNotification();
+  } else if ('Notification' in window && Notification.permission === 'granted') {
+    scheduleAllNotifications();
+  }
+}
+init();
+init();
+</script>
+</body>
+</html>
