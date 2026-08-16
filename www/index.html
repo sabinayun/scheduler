@@ -1049,6 +1049,43 @@ async function init(){
     scheduleAllNotifications();
   }
 }
+// Capacitor 알림 발송 함수 정의
+async function scheduleCapacitorNotification() {
+  const LocalNotifications = Capacitor.Plugins.LocalNotifications;
+
+  // 1. 알림 권한 요청
+  const perm = await LocalNotifications.requestPermissions();
+  if (perm.display !== 'granted') return;
+
+  // 2. 알림 예약 (5초 후 알림 발송 예시)
+  await LocalNotifications.schedule({
+    notifications: [
+      {
+        title: "일정 알림",
+        body: "할 일이 등록되었습니다.",
+        id: 1,
+        schedule: { at: new Date(Date.now() + 1000 * 5) }
+      }
+    ]
+  });
+}
+
+async function init(){
+  const t = new Date();
+  viewYear = t.getFullYear(); viewMonth = t.getMonth();
+  await loadEvents();
+  renderMonth();
+  initListeners();
+  updateNotifStatus();
+
+  // 앱 실행 시 Capacitor 알림 실행 테스트
+  if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+    scheduleCapacitorNotification();
+  } else if ('Notification' in window && Notification.permission === 'granted') {
+    scheduleAllNotifications();
+  }
+}
+init();
 init();
 </script>
 </body>
