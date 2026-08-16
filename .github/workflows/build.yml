@@ -1,31 +1,25 @@
 name: Build iOS App
-
 on:
   push:
     branches: [ main ]
-
 jobs:
   build-ios:
     runs-on: macos-14
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-
       - name: Install dependencies
         run: |
           npm install
           npx cap sync ios
-
       - name: Install CocoaPods
         run: |
           cd ios/App
           pod install || true
-
       - name: Build Xcode Project
         run: |
           cd ios/App
@@ -33,7 +27,8 @@ jobs:
             xcodebuild -workspace App.xcworkspace \
                        -scheme App \
                        -configuration Release \
-                       -sdk iphonesimulator \
+                       -sdk iphoneos \
+                       IPHONEOS_DEPLOYMENT_TARGET=14.0 \
                        CODE_SIGN_IDENTITY="" \
                        CODE_SIGNING_REQUIRED=NO \
                        CODE_SIGNING_ALLOWED=NO \
@@ -42,20 +37,19 @@ jobs:
             xcodebuild -project App.xcodeproj \
                        -scheme App \
                        -configuration Release \
-                       -sdk iphonesimulator \
+                       -sdk iphoneos \
+                       IPHONEOS_DEPLOYMENT_TARGET=14.0 \
                        CODE_SIGN_IDENTITY="" \
                        CODE_SIGNING_REQUIRED=NO \
                        CODE_SIGNING_ALLOWED=NO \
                        clean build
           fi
-
       - name: Package IPA
         run: |
           cd ios/App
           mkdir -p Payload
-          cp -r ~/Library/Developer/Xcode/DerivedData/App-*/Build/Products/Release-iphonesimulator/App.app Payload/ 2>/dev/null || cp -r build/Release-iphonesimulator/App.app Payload/
+          cp -r ~/Library/Developer/Xcode/DerivedData/App-*/Build/Products/Release-iphoneos/App.app Payload/ 2>/dev/null || cp -r build/Release-iphoneos/App.app Payload/
           zip -r App.ipa Payload
-
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
