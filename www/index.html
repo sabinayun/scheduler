@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>윤세빈 스케줄러</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
 <style>
@@ -26,13 +26,17 @@
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
+html{ touch-action: pan-x pan-y; }
 body{
   font-family: var(--font-body);
-  background: var(--paper); /* 선을 없애고 단색 배경만 남김 */
+  background: var(--paper);
   color: var(--ink);
   min-height:100vh;
   -webkit-font-smoothing: antialiased;
-}button{font-family:inherit; cursor:pointer;}
+  touch-action: pan-x pan-y; /* blocks pinch-zoom gesture even if the WebView ignores user-scalable=no */
+  overscroll-behavior: none;
+}
+button{font-family:inherit; cursor:pointer;}
 input,select,textarea{font-family:inherit;}
 ::selection{ background: rgba(214,69,69,0.18); }
 
@@ -182,10 +186,11 @@ input,select,textarea{font-family:inherit;}
 }
 
 /* ---------- Day view timeline+checklist ---------- */
-.day-body{ flex:1; overflow-y:auto; position:relative; padding: 14px 12px 40px; }
+.day-body{ flex:1; overflow-y:auto; position:relative; padding: 14px 12px 60px; }
 .timeline-wrap{
   display:grid; grid-template-columns: 40px 1fr 26px 1fr;
   gap:0 6px; position:relative;
+  margin-bottom: 20px;
 }
 .hours-col{ position:relative; }
 .hour-label{
@@ -242,13 +247,16 @@ input,select,textarea{font-family:inherit;}
 .empty-day .em-icon{ font-size:26px; display:block; margin-bottom:8px; }
 
 /* ---------- FAB ---------- */
-.fab{
-  position:absolute; right:18px; bottom:18px;
-  width:52px; height:52px; border-radius:50%;
+.fab-container{
+  display:flex; justify-content:center; padding: 28px 0 24px;
+  margin-top: 8px;
+  border-top: 1px dashed var(--paper-line);
+}
+.fab-inline{
+  width:100%; max-width:240px; height:44px; border-radius:22px;
   background: var(--ink); color:#fff; border:none;
-  font-size:24px; box-shadow: 0 4px 12px rgba(0,0,0,0.22);
-  display:flex; align-items:center; justify-content:center;
-  z-index:5;
+  font-size:14px; font-weight:600; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  display:flex; align-items:center; justify-content:center; gap:6px;
 }
 
 /* ---------- Add-block form panel ---------- */
@@ -376,32 +384,34 @@ textarea.ics-paste{ width:100%; min-height:120px; border-radius:2px; border:1px 
       <button class="close-x" id="closeDay">✕</button>
     </div>
     <div class="day-body" id="dayBody">
-      <!-- timeline injected here -->
-      <button class="fab" id="fabAdd">＋</button>
-      <div class="add-panel" id="addPanel">
-        <h4>새 일정 추가</h4>
+      <div id="timelineContainer"></div>
+      <div class="fab-container">
+        <button class="fab-inline" id="fabAdd">＋ 새 일정 추가</button>
+      </div>
+    </div>
+    <div class="add-panel" id="addPanel">
+      <h4>새 일정 추가</h4>
+      <div class="field">
+        <label>제목</label>
+        <input type="text" id="fTitle" placeholder="예: 자료구조 과제 정리">
+      </div>
+      <div class="field-row">
         <div class="field">
-          <label>제목</label>
-          <input type="text" id="fTitle" placeholder="예: 자료구조 과제 정리">
-        </div>
-        <div class="field-row">
-          <div class="field">
-            <label>시작 시간</label>
-            <input type="time" id="fStart" value="09:00">
-          </div>
-          <div class="field">
-            <label>종료 시간</label>
-            <input type="time" id="fEnd" value="10:00">
-          </div>
+          <label>시작 시간</label>
+          <input type="time" id="fStart" value="09:00">
         </div>
         <div class="field">
-          <label>분류</label>
-          <div class="cat-picker" id="catPicker"></div>
+          <label>종료 시간</label>
+          <input type="time" id="fEnd" value="10:00">
         </div>
-        <div class="panel-actions">
-          <button class="btn btn-ghost" id="cancelAdd">취소</button>
-          <button class="btn btn-primary" id="submitAdd">추가하기</button>
-        </div>
+      </div>
+      <div class="field">
+        <label>분류</label>
+        <div class="cat-picker" id="catPicker"></div>
+      </div>
+      <div class="panel-actions">
+        <button class="btn btn-ghost" id="cancelAdd">취소</button>
+        <button class="btn btn-primary" id="submitAdd">추가하기</button>
       </div>
     </div>
   </div>
@@ -458,7 +468,7 @@ textarea.ics-paste{ width:100%; min-height:120px; border-radius:2px; border:1px 
       <p style="margin-top:16px; font-weight:700; font-size:13px;">예약된 알림</p>
       <ul class="notif-list" id="notifList"></ul>
       <div class="note-box">
-        ⌚️ <b>Apple Watch 연동 안내</b> — 브라우저는 보안상 실제 기기 푸시(APNs)를 직접 보낼 수 없어요. 이 웹 앱을 Capacitor로 감싸 iOS 앱으로 배포하면, <code>@capacitor/local-notifications</code> API가 지금과 동일한 예약 로직을 그대로 사용해 iPhone과 미러링된 Apple Watch에 알림을 표시할 수 있어요. 지금은 탭이 열려있는 동안 브라우저 알림으로 동작을 미리 확인할 수 있도록 구현했어요.
+        ⌚️ <b>Apple Watch 연동 안내</b> — 이 웹 앱을 Capacitor로 감싸 iOS 앱으로 배포하면, <code>@capacitor/local-notifications</code> API가 local notification을 이용해 iPhone과 미러링된 Apple Watch에 알림을 표시합니다.
       </div>
     </div>
   </div>
@@ -479,7 +489,7 @@ const CATS = {
 };
 const WD = ['일','월','화','수','목','금','토'];
 const DAY_START = 8;   // 08:00
-const DAY_END = 22;    // 22:00
+const DAY_END = 24;    // 24:00 (수정)
 const PX_PER_MIN = 1;  // 1 minute = 1px
 
 let events = [];               // {id,date,title,start,end,category,checklist:[{id,text,done}],imported}
@@ -495,7 +505,7 @@ const isoDate = (y,m,d) => `${y}-${pad2(m+1)}-${pad2(d)}`;
 const uid = () => 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 
 /* =========================================================
-   Persistence (window.storage — personal, per-user)
+   Persistence
    ========================================================= */
 async function loadEvents(){
   try{
@@ -543,15 +553,12 @@ function renderMonth(){
   for(const ev of events){ (byDate[ev.date] ||= []).push(ev); }
 
   const cells = [];
-  // leading days from previous month
   for(let i=firstDay-1; i>=0; i--){
     cells.push({d: daysInPrevMonth-i, other:true, dow:(firstDay-1-i)%7});
   }
-  // current month
   for(let d=1; d<=daysInMonth; d++){
     cells.push({d, other:false});
   }
-  // trailing days to complete grid (multiple of 7)
   let trail = 1;
   while(cells.length % 7 !== 0){ cells.push({d:trail++, other:true, trailing:true}); }
 
@@ -611,24 +618,24 @@ function closeDay(){
 }
 
 function renderDayTimeline(){
-  const body = $('#dayBody');
-  // clear previous timeline content but keep fab + add-panel
-  $$('.timeline-wrap, .empty-day', body).forEach(el => el.remove());
+  const container = $('#timelineContainer');
+  container.innerHTML = '';
 
   const dayEvents = events.filter(e => e.date === selectedDate).sort((a,b)=> a.start.localeCompare(b.start));
 
   if(dayEvents.length === 0){
     const empty = document.createElement('div');
     empty.className = 'empty-day';
-    empty.innerHTML = `<span class="em-icon">🗒️</span>이 날은 아직 비어있어요.<br>오른쪽 아래 ＋ 버튼으로 일정을 추가해보세요.`;
-    body.insertBefore(empty, $('#fabAdd'));
+    empty.innerHTML = `<span class="em-icon">🗒️</span>이 날은 아직 비어있어요.<br>하단의 ＋ 버튼으로 일정을 추가해보세요.`;
+    container.appendChild(empty);
     return;
   }
 
   const totalMin = (DAY_END - DAY_START) * 60;
+  let maxBottom = totalMin * PX_PER_MIN; // will grow if checklist stacks push past 24:00
+
   const wrap = document.createElement('div');
   wrap.className = 'timeline-wrap';
-  wrap.style.minHeight = (totalMin * PX_PER_MIN + 20) + 'px';
 
   const hoursCol = document.createElement('div'); hoursCol.className = 'hours-col';
   const hourLines = document.createElement('div'); hourLines.className = 'hour-lines';
@@ -678,7 +685,6 @@ function renderDayTimeline(){
     connector.style.top = (top + height/2)+'px';
     gutterCol.appendChild(connector);
 
-    // checklist items linked to this block, stacked starting at block top
     const items = ev.checklist && ev.checklist.length ? ev.checklist : [{id:uid(), text:ev.title, done:false}];
     let itemTop = top;
     items.forEach(item => {
@@ -690,13 +696,26 @@ function renderDayTimeline(){
       checkCol.appendChild(li);
       itemTop += 34;
     });
+    maxBottom = Math.max(maxBottom, top + height, itemTop);
   });
+
+  // Explicitly fix every column + the wrap to the real content height (timeline
+  // hours OR any checklist stack that runs past 24:00, whichever is taller),
+  // instead of relying on CSS grid auto-sizing — this is what let the
+  // "새 일정 추가" button ride up over the bottom of the timeline before.
+  const finalHeight = maxBottom + 24; // small buffer so the last block/checklist item has breathing room
+  wrap.style.height = finalHeight + 'px';
+  hoursCol.style.height = finalHeight + 'px';
+  blocksCol.style.height = finalHeight + 'px';
+  gutterCol.style.height = finalHeight + 'px';
+  checkCol.style.height = finalHeight + 'px';
+  container.style.minHeight = finalHeight + 'px';
 
   wrap.appendChild(hoursCol);
   wrap.appendChild(blocksCol);
   wrap.appendChild(gutterCol);
   wrap.appendChild(checkCol);
-  body.insertBefore(wrap, $('#fabAdd'));
+  container.appendChild(wrap);
 }
 
 function escapeHtml(s){
@@ -845,7 +864,6 @@ function generateInstancesFromVEvent(ve, semesterEndDate){
   const until = rule.until && rule.until < semesterEndDate ? rule.until : semesterEndDate;
   const bydays = rule.byday.length ? rule.byday.map(c => DAYCODE[c]).filter(v=>v!==undefined) : [baseDate.getDay()];
 
-  // find the Sunday that begins baseDate's week
   const weekStart = addDays(baseDate, -baseDate.getDay());
   let cursorWeek = weekStart;
   let guard = 0;
@@ -912,10 +930,19 @@ async function handleParseICS(){
 }
 
 /* =========================================================
-   Notifications
+   Notifications (Web API & Capacitor App Native Support)
    ========================================================= */
 function updateNotifStatus(){
   const dot = $('#notifDot'), text = $('#notifStatusText'), btn = $('#btnEnableNotif');
+  
+  if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+    dot.style.background = 'var(--ink)';
+    text.textContent = '앱 알림 설정이 가능합니다';
+    btn.textContent = '알림 권한 요청 및 예약';
+    $('#btnNotif').classList.add('active');
+    return;
+  }
+
   if(!('Notification' in window)){
     dot.style.background = 'var(--muted)'; text.textContent = '이 브라우저는 알림을 지원하지 않아요';
     btn.style.display='none'; return;
@@ -933,7 +960,18 @@ function updateNotifStatus(){
     btn.textContent = '알림 켜기';
   }
 }
+
 async function enableNotifications(){
+  if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+    const LocalNotifications = Capacitor.Plugins.LocalNotifications;
+    const perm = await LocalNotifications.requestPermissions();
+    if (perm.display === 'granted') {
+      scheduleAllNotifications();
+      showToast('앱 기기 알림이 설정되었습니다');
+    }
+    return;
+  }
+
   if(!('Notification' in window)) return;
   const perm = await Notification.requestPermission();
   updateNotifStatus();
@@ -943,18 +981,55 @@ async function enableNotifications(){
     renderNotifList();
   }
 }
-function scheduleAllNotifications(){
+
+async function scheduleAllNotifications(){
   notifTimers.forEach(t => clearTimeout(t));
   notifTimers = [];
-  if(!('Notification' in window) || Notification.permission !== 'granted') { renderNotifList(); return; }
+
   const now = new Date();
+
+  // Capacitor (Native App) 환경 실행
+  if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+    const LocalNotifications = Capacitor.Plugins.LocalNotifications;
+    const perm = await LocalNotifications.checkPermissions();
+    if (perm.display !== 'granted') {
+      await LocalNotifications.requestPermissions();
+    }
+
+    const nativeNotifs = [];
+    events.forEach((ev, index) => {
+      const [h, m] = ev.start.split(':').map(Number);
+      const startAt = new Date(ev.date + 'T00:00:00');
+      startAt.setHours(h, m, 0, 0);
+      const notifyAt = new Date(startAt.getTime() - 10 * 60 * 1000);
+
+      if (notifyAt > now) {
+        nativeNotifs.push({
+          title: "일정 시작 10분 전 ⏰",
+          body: `${ev.title} (${ev.start} 시작)`,
+          id: Math.abs(hashCode(ev.id)),
+          schedule: { at: notifyAt }
+        });
+      }
+    });
+
+    if (nativeNotifs.length > 0) {
+      await LocalNotifications.schedule({ notifications: nativeNotifs });
+    }
+    renderNotifList();
+    return;
+  }
+
+  // Web Browser 환경 실행
+  if(!('Notification' in window) || Notification.permission !== 'granted') { renderNotifList(); return; }
+  
   events.forEach(ev => {
     const [h,m] = ev.start.split(':').map(Number);
     const startAt = new Date(ev.date + 'T00:00:00');
     startAt.setHours(h, m, 0, 0);
     const notifyAt = new Date(startAt.getTime() - 10*60*1000);
     const delay = notifyAt.getTime() - now.getTime();
-    // browser setTimeout max ~24.8 days; skip anything further out or in the past
+
     if(delay > 0 && delay < 24*24*60*60*1000){
       const timer = setTimeout(() => {
         try{
@@ -969,6 +1044,16 @@ function scheduleAllNotifications(){
   });
   renderNotifList();
 }
+
+function hashCode(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash;
+}
+
 function renderNotifList(){
   const list = $('#notifList');
   const now = new Date();
@@ -1038,37 +1123,15 @@ function initListeners(){
   $('#btnEnableNotif').addEventListener('click', enableNotifications);
 }
 
-async function init(){
-  const t = new Date();
-  viewYear = t.getFullYear(); viewMonth = t.getMonth();
-  await loadEvents();
-  renderMonth();
-  initListeners();
-  updateNotifStatus();
-  if('Notification' in window && Notification.permission === 'granted'){
-    scheduleAllNotifications();
-  }
-}
-// Capacitor 알림 발송 함수 정의
-async function scheduleCapacitorNotification() {
-  const LocalNotifications = Capacitor.Plugins.LocalNotifications;
-
-  // 1. 알림 권한 요청
-  const perm = await LocalNotifications.requestPermissions();
-  if (perm.display !== 'granted') return;
-
-  // 2. 알림 예약 (5초 후 알림 발송 예시)
-  await LocalNotifications.schedule({
-    notifications: [
-      {
-        title: "일정 알림",
-        body: "할 일이 등록되었습니다.",
-        id: 1,
-        schedule: { at: new Date(Date.now() + 1000 * 5) }
-      }
-    ]
-  });
-}
+// Extra safety net against pinch-zoom / double-tap-zoom on iOS WebViews
+// that sometimes ignore the viewport meta tag or touch-action CSS alone.
+document.addEventListener('gesturestart', e => e.preventDefault());
+let lastTouchEnd = 0;
+document.addEventListener('touchend', e => {
+  const now = Date.now();
+  if (now - lastTouchEnd <= 300) e.preventDefault();
+  lastTouchEnd = now;
+}, { passive:false });
 
 async function init(){
   const t = new Date();
@@ -1078,14 +1141,9 @@ async function init(){
   initListeners();
   updateNotifStatus();
 
-  // 앱 실행 시 Capacitor 알림 실행 테스트
-  if (window.Capacitor && window.Capacitor.isNativePlatform()) {
-    scheduleCapacitorNotification();
-  } else if ('Notification' in window && Notification.permission === 'granted') {
-    scheduleAllNotifications();
-  }
+  scheduleAllNotifications();
 }
-init();
+
 init();
 </script>
 </body>
