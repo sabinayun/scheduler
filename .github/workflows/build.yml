@@ -28,7 +28,6 @@ jobs:
                      -scheme App \
                      -configuration Release \
                      -sdk iphoneos \
-                     -derivedDataPath build \
                      CODE_SIGNING_ALLOWED=NO \
                      CODE_SIGNING_REQUIRED=NO \
                      clean build
@@ -37,7 +36,7 @@ jobs:
         run: |
           cd ios/App
           mkdir -p Payload
-          cp -r build/Build/Products/Release-iphoneos/App.app Payload/
+          cp -r build/Release-iphoneos/App.app Payload/ 2>/dev/null || cp -r ~/Library/Developer/Xcode/DerivedData/App-*/Build/Products/Release-iphoneos/App.app Payload/
           zip -r App.ipa Payload
 
       - name: Upload IPA Artifact
