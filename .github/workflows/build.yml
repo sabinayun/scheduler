@@ -23,6 +23,7 @@ jobs:
       - name: Build Xcode Project
         run: |
           cd ios/App
+          set -o pipefail
           if [ -d "App.xcworkspace" ]; then
             xcodebuild -workspace App.xcworkspace \
                        -scheme App \
@@ -32,7 +33,7 @@ jobs:
                        CODE_SIGN_IDENTITY="" \
                        CODE_SIGNING_REQUIRED=NO \
                        CODE_SIGNING_ALLOWED=NO \
-                       clean build
+                       clean build 2>&1 | tee ../../build_log.txt
           else
             xcodebuild -project App.xcodeproj \
                        -scheme App \
@@ -42,8 +43,14 @@ jobs:
                        CODE_SIGN_IDENTITY="" \
                        CODE_SIGNING_REQUIRED=NO \
                        CODE_SIGNING_ALLOWED=NO \
-                       clean build
+                       clean build 2>&1 | tee ../../build_log.txt
           fi
+      - name: Upload Build Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build_log.txt
       - name: Package IPA
         run: |
           cd ios/App
