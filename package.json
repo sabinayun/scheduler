@@ -11,9 +11,9 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@capacitor/cli": "^8.5.0",
-    "@capacitor/core": "^8.5.0",
-    "@capacitor/ios": "^8.5.0",
-    "@capacitor/local-notifications": "^8.3.0"
+    "@capacitor/cli": "^7.4.5",
+    "@capacitor/core": "^7.4.5",
+    "@capacitor/ios": "^7.4.5",
+    "@capacitor/local-notifications": "^7.0.1"
   }
 }
