@@ -21,25 +21,39 @@ jobs:
           npm install
           npx cap sync ios
 
+      - name: Install CocoaPods
+        run: |
+          cd ios/App
+          pod install || true
+
       - name: Build Xcode Project
         run: |
           cd ios/App
-          xcodebuild -project App.xcodeproj \
-                     -scheme App \
-                     -configuration Release \
-                     -sdk iphoneos \
-                     -skipPackagePluginValidation \
-                     -skipMacroValidation \
-                     CODE_SIGN_IDENTITY="" \
-                     CODE_SIGNING_REQUIRED=NO \
-                     CODE_SIGNING_ALLOWED=NO \
-                     clean build
+          if [ -d "App.xcworkspace" ]; then
+            xcodebuild -workspace App.xcworkspace \
+                       -scheme App \
+                       -configuration Release \
+                       -sdk iphonesimulator \
+                       CODE_SIGN_IDENTITY="" \
+                       CODE_SIGNING_REQUIRED=NO \
+                       CODE_SIGNING_ALLOWED=NO \
+                       clean build
+          else
+            xcodebuild -project App.xcodeproj \
+                       -scheme App \
+                       -configuration Release \
+                       -sdk iphonesimulator \
+                       CODE_SIGN_IDENTITY="" \
+                       CODE_SIGNING_REQUIRED=NO \
+                       CODE_SIGNING_ALLOWED=NO \
+                       clean build
+          fi
 
       - name: Package IPA
         run: |
           cd ios/App
           mkdir -p Payload
-          cp -r ~/Library/Developer/Xcode/DerivedData/App-*/Build/Products/Release-iphoneos/App.app Payload/ 2>/dev/null || cp -r build/Release-iphoneos/App.app Payload/
+          cp -r ~/Library/Developer/Xcode/DerivedData/App-*/Build/Products/Release-iphonesimulator/App.app Payload/ 2>/dev/null || cp -r build/Release-iphonesimulator/App.app Payload/
           zip -r App.ipa Payload
 
       - name: Upload IPA Artifact
